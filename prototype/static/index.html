@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SAVENT</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header>
+    <div>
+      <p class="kicker">Kantin Borju · prototipe hackathon</p>
+      <h1>SAVENT</h1>
+    </div>
+    <p id="clock" class="clock"></p>
+  </header>
+
+  <section class="grid">
+    <article class="hero">
+      <p class="label">CO₂ terkoreksi</p>
+      <p id="co2" class="figure">–</p>
+      <p id="co2meta" class="meta"></p>
+      <p id="co2status" class="status"></p>
+    </article>
+    <article>
+      <p class="label">Prediksi 10 menit</p>
+      <p id="pred" class="figure small">–</p>
+      <p id="model" class="meta"></p>
+    </article>
+    <article>
+      <p class="label">Keputusan</p>
+      <p id="request" class="figure small">–</p>
+      <p id="fan" class="meta"></p>
+      <p id="intake" class="meta"></p>
+    </article>
+  </section>
+
+  <section class="grid four" id="climate"></section>
+
+  <section class="panel">
+    <div class="split">
+      <div>
+        <h2>Mode</h2>
+        <div class="modes" id="modes"></div>
+        <div class="actions">
+          <button data-cmd="confirm">Setujui 60 detik</button>
+          <button data-cmd="force_off">Paksa mati</button>
+          <button data-cmd="force_off_release">Lepas paksa mati</button>
+        </div>
+      </div>
+      <div>
+        <h2>Skenario meja</h2>
+        <div class="actions" id="scenarios"></div>
+        <p id="broker" class="meta"></p>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>Jejak CO₂</h2>
+    <canvas id="chart" width="960" height="220"></canvas>
+    <p id="metrics" class="meta"></p>
+  </section>
+
+  <section class="panel">
+    <h2>Jejak keputusan</h2>
+    <ol id="events"></ol>
+  </section>
+
+  <script src="/app.js"></script>
+</body>
+</html>

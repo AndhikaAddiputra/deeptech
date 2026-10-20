@@ -1,0 +1,112 @@
+:root {
+  color-scheme: light;
+  --ink: #1c1915;
+  --muted: #5c564c;
+  --paper: #f4f0e6;
+  --card: #fffdf8;
+  --line: #ddd4c4;
+  --alert: #8c2f20;
+  --ok: #1f6b4a;
+  --mark: #8a5a12;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: "Iowan Old Style", "Palatino Linotype", Palatino, serif;
+  background: var(--paper);
+  color: var(--ink);
+}
+
+header, .grid, .panel {
+  width: min(1100px, calc(100% - 32px));
+  margin-left: auto;
+  margin-right: auto;
+}
+
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: end;
+  padding: 28px 0 8px;
+}
+
+h1, h2, p { margin: 0; }
+
+h1 { font-size: 40px; letter-spacing: 0.04em; }
+
+h2 { font-size: 18px; margin-bottom: 12px; }
+
+.kicker, .label, .meta, .clock {
+  font-family: "Avenir Next", "Segoe UI", sans-serif;
+}
+
+.kicker {
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.clock { color: var(--muted); font-size: 13px; max-width: 280px; text-align: right; }
+
+.grid {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr 1fr;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.grid.four { grid-template-columns: repeat(4, 1fr); }
+
+article, .panel {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 16px 18px;
+}
+
+.panel { margin-top: 12px; }
+
+.label { font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+
+.figure { font-size: 64px; line-height: 1; margin-top: 8px; }
+
+.figure.small { font-size: 36px; }
+
+.meta { margin-top: 8px; color: var(--muted); font-size: 14px; line-height: 1.4; }
+
+.status { margin-top: 10px; font-family: "Avenir Next", "Segoe UI", sans-serif; font-weight: 600; }
+
+.status.bad { color: var(--alert); }
+.status.good { color: var(--ok); }
+.status.wait { color: var(--mark); }
+
+.split { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+
+.modes, .actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
+button {
+  font: 14px/1 "Avenir Next", "Segoe UI", sans-serif;
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--ink);
+  border-radius: 999px;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+
+button.active { background: var(--ink); color: white; border-color: var(--ink); }
+
+canvas { width: 100%; height: auto; background: #fbf8f2; border-radius: 8px; }
+
+ol { margin: 0; padding-left: 18px; font-family: "Avenir Next", "Segoe UI", sans-serif; font-size: 14px; }
+
+li { margin: 4px 0; }
+
+@media (max-width: 800px) {
+  .grid, .grid.four, .split { grid-template-columns: 1fr; }
+  header { flex-direction: column; align-items: start; gap: 8px; }
+  .clock { text-align: left; }
+}
