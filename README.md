@@ -28,6 +28,10 @@ PORT=8766 python3 -m prototype.server
 
 Hentikan server dengan Ctrl+C.
 
+## Bukti di layar
+
+Banner di bawah kelas menulis tiga hal: prediksi lebih awal daripada aturan ambang, lama CO₂ di atas 1000 ppm dibanding kelas yang dibiarkan diam, dan alasan kipas menyala atau diam. Node sensor dan kipas ada di model 3D. Kipas berputar saat udara luar dimasukkan atau udara dalam dibuang.
+
 ## Membaca dasbor
 
 Tengah layar adalah kelas isometrik. Klik node sensor, grille udara masuk, atau grille udara keluar untuk melihat angkanya. Kartu di bawah melakukan hal yang sama. Kondisi udara luar hanya tertulis di panel kanan dan tidak digambar.
@@ -43,14 +47,10 @@ Panel kanan, dari atas:
 | Ukuran kelas | Kelas kecil, kelas standar, atau auditorium |
 | Uji gangguan | Suntikan kondisi. Bukan pengaturan gedung |
 
-Empat pilihan penggerak:
+Dua pilihan penggerak:
 
-- **Hanya lihat.** Angka tampil, ventilasi tidak bergerak.
-- **Rekomendasikan saja.** Saran tampil, udara tetap diam. Ini mode bawaan tugas akhir.
-- **Tunggu izin saya.** Ventilasi bergerak setelah **Izinkan sekarang**.
-- **Jalankan sendiri.** Sistem memilih memasukkan udara luar atau membuang udara dalam.
-
-**Hentikan ventilasi** mengalahkan model. **Boleh jalan lagi** melepas hentian itu.
+- **Rekomendasi.** Sistem menyarankan arah udara. Kipas tidak bergerak. Ini mode bawaan.
+- **Jalankan sendiri.** Kipas menyala sendiri: udara luar masuk, atau udara dalam dibuang bila udara luar lebih kotor.
 
 ## Uji
 

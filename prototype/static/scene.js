@@ -32,8 +32,13 @@ export function createClassroom(canvas, onSelect) {
   const pickables = [];
   const materials = {};
   let arrows = { air_in: null, air_out: null };
+  let fanGroup = null;
+  let flowDots = [];
+  let flowAnchor = null;
+  let flowLength = 1;
   let selected = null;
   let signature = "";
+  let roomSpan = 12;
 
   function resize() {
     const width = canvas.clientWidth || 640;
@@ -48,7 +53,7 @@ export function createClassroom(canvas, onSelect) {
   function zoom(direction) {
     const offset = new THREE.Vector3().subVectors(camera.position, controls.target);
     offset.multiplyScalar(direction > 0 ? 0.82 : 1.22);
-    const length = THREE.MathUtils.clamp(offset.length(), 4, 40);
+    const length = THREE.MathUtils.clamp(offset.length(), roomSpan * 0.45, roomSpan * 3.2);
     offset.setLength(length);
     camera.position.copy(controls.target).add(offset);
   }
@@ -64,6 +69,9 @@ export function createClassroom(canvas, onSelect) {
     }
     pickables.length = 0;
     arrows = { air_in: null, air_out: null };
+    fanGroup = null;
+    flowDots = [];
+    flowAnchor = null;
   }
 
   function mesh(w, h, d, x, y, z, color, id) {
@@ -86,37 +94,94 @@ export function createClassroom(canvas, onSelect) {
     const ratio = 1.25;
     const width = Math.sqrt(area / ratio);
     const depth = width * ratio;
-    const wallH = 0.95;
-    const t = 0.08;
-    mesh(width, 0.08, depth, 0, -0.04, 0, 0xe7e1d6);
-    mesh(width, wallH, t, 0, wallH / 2, -depth / 2, 0xe7e2da);
-    mesh(t, wallH, depth, -width / 2, wallH / 2, 0, 0xe7e2da);
-    mesh(t, wallH, depth, width / 2, wallH / 2, 0, 0xe4e0d8);
-    const gap = width * 0.38;
-    const side = (width - gap) / 2;
-    mesh(side, wallH, t, -(gap + side) / 2, wallH / 2, depth / 2, 0xe7e2da);
-    mesh(side, wallH, t, (gap + side) / 2, wallH / 2, depth / 2, 0xe7e2da);
-    mesh(gap, wallH * 0.72, 0.02, 0, wallH * 0.55, depth / 2 - 0.02, 0xd5e4ec);
+    const wallH = Math.max(ceiling, 2.6);
+    const t = 0.12;
+    roomSpan = Math.max(width, depth, wallH);
 
-    for (const x of [-width * 0.28, width * 0.08]) {
-      mesh(width * 0.34, 0.08, 0.7, x, 0.42, 0.15, 0xddd6cb);
+    mesh(width, 0.08, depth, 0, -0.04, 0, 0xd9cbb8);
+    mesh(width, wallH, t, 0, wallH / 2, -depth / 2, 0xf4f0e8);
+    mesh(t, wallH, depth, -width / 2, wallH / 2, 0, 0xefeae2);
+    mesh(width * 0.22, 0.9, t, -width * 0.28, 0.45, depth / 2, 0xf7f3ec);
+    mesh(width * 0.22, 0.9, t, width * 0.28, 0.45, depth / 2, 0xf7f3ec);
+    mesh(width * 0.34, wallH * 0.55, 0.04, 0, wallH * 0.62, depth / 2 - 0.02, 0xc5d8e4);
+
+    mesh(width * 0.42, wallH * 0.28, 0.04, 0, wallH * 0.62, -depth / 2 + t, 0xf7f7f5);
+    mesh(0.7, 0.04, 1.3, 0, 0.78, -depth / 2 + 0.85, 0xc8b89a);
+
+    const rows = 3;
+    const cols = 3;
+    for (let row = 0; row < rows; row += 1) {
+      for (let col = 0; col < cols; col += 1) {
+        const x = (col - 1) * width * 0.24;
+        const z = (row - 0.2) * depth * 0.18;
+        mesh(width * 0.16, 0.05, depth * 0.08, x, 0.74, z, 0xe4d3b8);
+        mesh(0.28, 0.45, 0.28, x, 0.28, z + depth * 0.055, 0xb7c3c9);
+      }
     }
 
-    const pole = mesh(0.08, 1.3, 0.08, -width * 0.12, 0.65, -depth * 0.08, 0x8d877c);
-    pole.castShadow = true;
-    mesh(0.46, 0.24, 0.28, -width * 0.12, 1.36, -depth * 0.08, CALM, "sensor");
+    const sensorX = -width / 2 + 0.16;
+    const sensorY = 1.5;
+    const sensorZ = depth * 0.05;
+    mesh(0.06, 0.16, 0.22, sensorX, sensorY, sensorZ, CALM, "sensor");
+    const ledMaterial = new THREE.MeshStandardMaterial({ color: CALM, emissive: CALM, emissiveIntensity: 0.8 });
+    const led = new THREE.Mesh(new THREE.SphereGeometry(0.045, 16, 12), ledMaterial);
+    led.position.set(sensorX + 0.04, sensorY + 0.05, sensorZ);
+    led.userData.id = "sensor";
+    pickables.push(led);
+    materials.led = ledMaterial;
+    root.add(led);
 
-    mesh(1.1, 0.42, 0.1, 0, 0.72, depth / 2 - 0.14, IDLE, "air_in");
-    mesh(1.1, 0.42, 0.1, 0, 0.72, -depth / 2 + 0.14, IDLE, "air_out");
-    arrows.air_in = new THREE.ArrowHelper(new THREE.Vector3(0, 0, -1), new THREE.Vector3(0, 0.7, depth / 2 - 0.55), 0.9, ACTIVE, 0.22, 0.14);
-    arrows.air_out = new THREE.ArrowHelper(new THREE.Vector3(0, 0, -1), new THREE.Vector3(0, 0.7, -depth / 2 + 0.35), 0.9, ACTIVE, 0.22, 0.14);
-    arrows.air_in.visible = false;
-    arrows.air_out.visible = false;
-    root.add(arrows.air_in, arrows.air_out);
+    const fanX = width * 0.3;
+    const fanY = wallH * 0.68;
+    const fanZ = depth / 2 - 0.22;
+    const shroudMat = new THREE.MeshStandardMaterial({ color: IDLE, roughness: 0.72 });
+    const shroud = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.7, 0.08), shroudMat);
+    shroud.position.set(fanX, fanY, fanZ + 0.08);
+    shroud.userData.id = "fan";
+    pickables.push(shroud);
+    materials.fan = shroudMat;
+    materials.air_in = shroudMat;
+    materials.air_out = shroudMat;
+    root.add(shroud);
 
-    const span = Math.max(width, depth, ceiling);
-    camera.position.set(span * 0.95, span * 0.82, span * 1.05);
-    controls.target.set(0, 0.5, 0);
+    fanGroup = new THREE.Group();
+    fanGroup.position.set(fanX, fanY, fanZ);
+    fanGroup.rotation.x = Math.PI / 2;
+    const hubMaterial = new THREE.MeshStandardMaterial({ color: 0x4d4944, roughness: 0.45 });
+    const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.05, 16), hubMaterial);
+    hub.userData.id = "fan";
+    pickables.push(hub);
+    fanGroup.add(hub);
+    const bladeReach = 0.28;
+    for (let blade = 0; blade < 4; blade += 1) {
+      const vane = new THREE.Mesh(
+        new THREE.BoxGeometry(bladeReach, 0.02, 0.08),
+        new THREE.MeshStandardMaterial({ color: 0xe4ddd4, roughness: 0.65 }),
+      );
+      vane.position.x = bladeReach * 0.55;
+      vane.userData.id = "fan";
+      pickables.push(vane);
+      const arm = new THREE.Group();
+      arm.rotation.y = blade * (Math.PI / 2);
+      arm.add(vane);
+      fanGroup.add(arm);
+    }
+    root.add(fanGroup);
+
+    flowAnchor = { x: fanX, y: fanY, z: fanZ };
+    flowLength = Math.min(depth * 0.42, 3.2);
+    const flowMat = new THREE.MeshBasicMaterial({ color: 0x8ec3db, transparent: true, opacity: 0.75 });
+    flowDots = [];
+    for (let i = 0; i < 9; i += 1) {
+      const dot = new THREE.Mesh(new THREE.SphereGeometry(0.055, 10, 8), flowMat);
+      dot.userData.offset = i / 9;
+      dot.visible = false;
+      root.add(dot);
+      flowDots.push(dot);
+    }
+
+    camera.position.set(roomSpan * 0.72, wallH * 1.15, roomSpan * 0.95);
+    controls.target.set(0, wallH * 0.38, 0);
     controls.update();
     applySelection();
   }
@@ -131,17 +196,22 @@ export function createClassroom(canvas, onSelect) {
   function paint(record) {
     const co2 = record?.co2_ppm;
     const quality = record?.quality?.co2;
-    const sensor = materials.sensor;
-    if (sensor) {
-      const alert = quality === "ok" && co2 >= 1000;
-      const waiting = quality && quality !== "ok";
-      sensor.color.setHex(waiting ? IDLE : alert ? WARM : CALM);
-    }
+    const alert = quality === "ok" && co2 >= 1000;
+    const waiting = Boolean(quality && quality !== "ok");
     const mode = record?.air_mode;
-    if (materials.air_in) materials.air_in.color.setHex(mode === "air_in" ? ACTIVE : IDLE);
-    if (materials.air_out) materials.air_out.color.setHex(mode === "air_out" ? ACTIVE : IDLE);
-    if (arrows.air_in) arrows.air_in.visible = mode === "air_in";
-    if (arrows.air_out) arrows.air_out.visible = mode === "air_out";
+    if (materials.sensor) materials.sensor.color.setHex(waiting ? IDLE : alert ? WARM : CALM);
+    if (materials.led) {
+      materials.led.color.setHex(waiting ? IDLE : alert ? WARM : CALM);
+      materials.led.emissive.setHex(waiting ? IDLE : alert ? WARM : CALM);
+      materials.led.emissiveIntensity = 0.85;
+    }
+    const spinning = mode === "air_in" || mode === "air_out";
+    const direction = mode === "air_in" ? 1 : mode === "air_out" ? -1 : 0;
+    if (fanGroup) fanGroup.userData.direction = direction;
+    if (materials.fan) materials.fan.color.setHex(spinning ? ACTIVE : IDLE);
+    flowDots.forEach((dot) => {
+      dot.visible = spinning;
+    });
   }
 
   function update(state) {
@@ -180,6 +250,19 @@ export function createClassroom(canvas, onSelect) {
 
   function frame() {
     resize();
+    const direction = fanGroup?.userData.direction || 0;
+    if (fanGroup && direction) fanGroup.rotation.y += direction * 0.28;
+    if (flowAnchor && direction) {
+      flowDots.forEach((dot) => {
+        dot.userData.offset = (dot.userData.offset + 0.006) % 1;
+        const travel = direction > 0 ? dot.userData.offset : 1 - dot.userData.offset;
+        dot.position.set(
+          flowAnchor.x + Math.sin(dot.userData.offset * Math.PI * 2) * 0.12,
+          flowAnchor.y + Math.cos(dot.userData.offset * Math.PI * 2) * 0.08,
+          flowAnchor.z - travel * flowLength,
+        );
+      });
+    }
     controls.update();
     renderer.render(scene, camera);
     requestAnimationFrame(frame);

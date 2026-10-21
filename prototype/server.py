@@ -15,7 +15,8 @@ from urllib.parse import urlparse
 
 from savent.logic import Node, OutdoorSample, Sample
 from savent.model import fit, replay_metrics
-from savent.twin import AIR_MODES, PRESETS, ClassroomTwin, recommend_air_mode
+from savent.twin import AIR_MODES, AIR_STAY, PRESETS, ClassroomTwin, recommend_air_mode
+from savent.proof import compare_text, explain_decision, lead_text
 
 ROOT = Path(__file__).resolve().parent
 STATIC = ROOT / "static"
@@ -30,12 +31,17 @@ class Demo:
         self.metrics = replay_metrics(self.coefficients)
         self.node = Node(coefficients=self.coefficients)
         self.twin = ClassroomTwin()
+        self.shadow = ClassroomTwin(self.twin.spec)
         self.air_override: str | None = None
         self.breath_ticks = 0
         self.sensor_dead = False
         self.checksum_fail = False
         self.broker_up = True
         self.published: list[dict] = []
+        self.above_s = 0.0
+        self.shadow_above_s = 0.0
+        self.model_warn_at: float | None = None
+        self.rule_warn_at: float | None = None
         self.lock = threading.Lock()
         self._stop = threading.Event()
 
@@ -43,14 +49,42 @@ class Demo:
         with self.lock:
             if self.breath_ticks > 0:
                 self.twin.co2_ppm += 40
+                self.shadow.co2_ppm += 40
                 self.breath_ticks -= 1
+            seen_co2 = self.twin.co2_ppm
+            seen_shadow = self.shadow.co2_ppm
             outdoor = OutdoorSample(pm25=self.twin.spec.outdoor_pm25, pm_quality="ok")
             record = self.node.advance(30.0, self._sample(), outdoor, self.broker_up)
             mode = self._air_mode(record)
             self.twin.step(30.0, mode)
+            self.shadow.step(30.0, AIR_STAY)
+            self._tally(seen_co2, seen_shadow, record)
             record["air_mode"] = mode
             record["recommended_air_mode"] = recommend_air_mode(self.node.demand, record["outdoor_intake_ok"])
+            record["reason"] = explain_decision(record, mode)
+            record["fan_actuator"] = mode in ("air_in", "air_out")
             self._ingest(record)
+
+    def _tally(self, seen_co2: float, seen_shadow: float, record: dict) -> None:
+        if record.get("quality", {}).get("co2") != "ok":
+            return
+        if seen_co2 >= 1000:
+            self.above_s += 30
+        if seen_shadow >= 1000:
+            self.shadow_above_s += 30
+        co2 = record.get("co2_ppm")
+        pred = record.get("co2_pred_10min_ppm")
+        if self.model_warn_at is None and record.get("model_used") and pred is not None and co2 is not None and pred >= 1000 and co2 < 1000:
+            self.model_warn_at = self.node.now
+        if self.rule_warn_at is None and co2 is not None and co2 >= 1000:
+            self.rule_warn_at = self.node.now
+
+    def _proof(self) -> dict:
+        return {
+            "reason": explain_decision(self.node.last_record or {}, (self.node.last_record or {}).get("air_mode", "air_stay")),
+            "lead": lead_text(self.model_warn_at, self.rule_warn_at, self.metrics.get("lead_time_s")),
+            "compare": compare_text(self.above_s, self.shadow_above_s),
+        }
 
     def _sample(self) -> Sample:
         raw = None if self.sensor_dead else self.twin.raw_co2()
@@ -135,6 +169,7 @@ class Demo:
                     for item in self.published[-60:]
                 ],
                 "twin": self._twin_view(),
+                "proof": self._proof(),
                 "clock": "1 detik dinding = 30 detik sensor",
             }
 

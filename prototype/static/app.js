@@ -1,16 +1,12 @@
 import { createClassroom } from "./scene.js";
 
 const modes = [
-  [0, "Hanya lihat"],
-  [1, "Rekomendasikan saja"],
-  [2, "Tunggu izin saya"],
   [3, "Jalankan sendiri"],
+  [1, "Rekomendasi"],
 ];
 const modeHints = {
-  0: "Angka dan prediksi tampil. Ventilasi tidak bergerak.",
-  1: "Sistem menyarankan arah udara, tetapi belum menggerakkannya.",
-  2: "Ventilasi bergerak hanya setelah Anda menekan Izinkan sekarang.",
-  3: "Sistem memilih masukkan udara luar atau buang udara dalam sendiri.",
+  1: "Sistem hanya menyarankan arah udara. Kipas tidak bergerak.",
+  3: "Sistem menyalakan kipas sendiri: udara luar masuk, atau udara dalam dibuang.",
 };
 const airModes = [
   [null, "Ikuti rekomendasi"],
@@ -128,6 +124,7 @@ async function refresh() {
     ? `${record.ts} · 1 detik dinding = 30 detik sensor`
     : "Menunggu sampel";
   paintDecision(record);
+  paintProof(latest.proof);
   paintTwin(latest.twin);
   paintSpark(latest.history || []);
   paintEvents(latest.events || []);
@@ -157,9 +154,10 @@ function paintDecision(record) {
     ? "Data tersimpan."
     : `Koneksi putus. ${latest?.buffer_depth ?? 0} rekaman menunggu dikirim.`;
   const activeMode = record?.mode ?? 1;
-  document.querySelector("#mode-hint").textContent = modeHints[activeMode];
+  const auto = activeMode === 3;
+  document.querySelector("#mode-hint").textContent = modeHints[auto ? 3 : 1];
   for (const button of modeBox.querySelectorAll("button")) {
-    button.classList.toggle("active", Number(button.dataset.mode) === activeMode);
+    button.classList.toggle("active", Number(button.dataset.mode) === (auto ? 3 : 1));
   }
   const metrics = latest?.metrics;
   if (metrics) {
@@ -179,6 +177,15 @@ function paintTwin(twin) {
   }
 }
 
+function paintProof(proof) {
+  const banner = document.querySelector("#proof");
+  if (!proof) {
+    banner.textContent = "";
+    return;
+  }
+  banner.textContent = `${proof.lead} ${proof.compare} ${proof.reason}`;
+}
+
 function fillTwin(twin) {
   paintTwin(twin);
 }
@@ -187,18 +194,19 @@ function paintCards() {
   const record = latest?.record;
   const mode = record?.air_mode;
   const cards = [
-    ["sensor", "Node sensor", record ? `${record.co2_ppm ?? "–"} ppm · ${record.quality?.co2 ?? ""}` : "Menunggu"],
-    ["air_in", "Masukkan udara luar", mode === "air_in" ? "Sedang mengalir" : "Diam"],
-    ["air_out", "Buang udara dalam", mode === "air_out" ? "Sedang membuang" : "Diam"],
+    ["sensor", "Node sensor", record ? `${record.co2_ppm ?? "–"} ppm · ${record.quality?.co2 ?? ""}` : "Menunggu", "Sensing"],
+    ["fan", "Kipas", record?.fan_actuator ? "Berputar" : "Diam", "Aktuator"],
+    ["air_in", "Masukkan udara luar", mode === "air_in" ? "Sedang mengalir" : "Diam", "Arah udara"],
+    ["air_out", "Buang udara dalam", mode === "air_out" ? "Sedang membuang" : "Diam", "Arah udara"],
   ];
   const host = document.querySelector("#cards");
-  host.replaceChildren(...cards.map(([id, title, detail]) => {
+  host.replaceChildren(...cards.map(([id, title, detail, kind]) => {
     const button = document.createElement("button");
     button.type = "button";
     button.className = `card${selected === id ? " active" : ""}`;
     const kicker = document.createElement("span");
     kicker.className = "kicker";
-    kicker.textContent = id === "sensor" ? "Sensing" : "Aktuator";
+    kicker.textContent = kind;
     const name = document.createElement("strong");
     name.textContent = title;
     const line = document.createElement("p");
@@ -221,6 +229,12 @@ function paintPopup() {
   const rect = canvas.getBoundingClientRect();
   popup.style.left = `${Math.min(rect.width * 0.42, rect.width - 300)}px`;
   popup.style.top = "18%";
+  const titles = {
+    sensor: "Node sensor",
+    fan: "Kipas",
+    air_in: "Masukkan udara luar",
+    air_out: "Buang udara dalam",
+  };
   const rows = selected === "sensor"
     ? [
       ["CO₂ terkoreksi", record.co2_ppm == null ? "–" : `${record.co2_ppm} ppm`],
@@ -229,19 +243,24 @@ function paintPopup() {
       ["RH", `${record.rh_pct}%`],
       ["PM2.5", record.pm25_ugm3],
       ["Bendera", record.quality.co2],
+      ["Alasan", record.reason],
     ]
-    : [
-      ["Mode aktif", airLabel(record.air_mode)],
-      ["ACH", twin?.ach ?? "–"],
-      ["Volume", twin ? `${twin.volume_m3} m³` : "–"],
-      ["Udara luar", record.outdoor_intake_ok ? "Layak" : "Ditolak"],
-      ["Rekomendasi", airLabel(record.recommended_air_mode)],
-      ["Penghuni", twin?.spec.occupants ?? "–"],
-    ];
+    : selected === "fan"
+      ? [
+        ["Keadaan", record.fan_actuator ? "Berputar" : "Diam"],
+        ["Arah udara", airLabel(record.air_mode)],
+        ["Alasan", record.reason],
+      ]
+      : [
+        ["Mode aktif", airLabel(record.air_mode)],
+        ["ACH", twin?.ach ?? "–"],
+        ["Volume", twin ? `${twin.volume_m3} m³` : "–"],
+        ["Udara luar", record.outdoor_intake_ok ? "Layak" : "Ditolak"],
+        ["Rekomendasi", airLabel(record.recommended_air_mode)],
+        ["Alasan", record.reason],
+      ];
   document.querySelector("#popup-kicker").textContent = selected === "sensor" ? "Sensing" : "Aktuator";
-  document.querySelector("#popup-title").textContent = selected === "sensor"
-    ? "Node sensor"
-    : (selected === "air_in" ? "Masukkan udara luar" : "Buang udara dalam");
+  document.querySelector("#popup-title").textContent = titles[selected] || "Perangkat";
   const body = document.querySelector("#popup-body");
   body.replaceChildren();
   for (const [label, value] of rows) {
