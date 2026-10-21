@@ -300,3 +300,15 @@ Uji macet: sensor CO₂ yang tidak menjawab atau nilai di luar 400–5000 ppm me
 | Fusi, kompensasi, model | Koefisien regresi, tabel MAE terhadap persistensi, bendera kualitas |
 
 Enclosure outdoor dan gambar SSR 220 V tidak menggeser urutan di atas.
+
+## 16. Penyesuaian sesi hackathon
+
+Untuk sesi ini aktuasi perangkat keras ditunda. Lingkungan terkendali diganti digital twin satu zona di `savent/twin.py`. Volume mengikuti luas lantai dan tinggi plafon. Penghuni, laju ventilasi, dan udara luar dapat diganti tanpa mengubah keputusan node.
+
+Tiga mode udara:
+
+- `air_stay`: tidak ada ventilasi mekanis. CO₂ naik karena penghuni, hanya dikurangi bocoran selubung.
+- `air_in`: udara luar masuk dan mengencerkan CO₂ serta partikel menuju kondisi luar.
+- `air_out`: udara dalam dibuang. Udara pengganti berasal dari luar, dengan filter dummy yang menurunkan partikel tetapi tidak menurunkan CO₂.
+
+Mode 0 dan 1 tetap tidak menggerakkan aktuasi, jadi twin berada di `air_stay` sambil menampilkan rekomendasi. Mode 3 menerapkan `air_in` bila udara luar layak, dan `air_out` bila PM luar lebih kotor. Dasbor dapat mengunci salah satu mode untuk percobaan.

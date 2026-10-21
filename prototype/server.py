@@ -15,6 +15,7 @@ from urllib.parse import urlparse
 
 from savent.logic import Node, OutdoorSample, Sample
 from savent.model import fit, replay_metrics
+from savent.twin import AIR_MODES, PRESETS, ClassroomTwin, recommend_air_mode
 
 ROOT = Path(__file__).resolve().parent
 STATIC = ROOT / "static"
@@ -23,42 +24,16 @@ HOST = "127.0.0.1"
 PORT = int(os.environ.get("PORT", "8765"))
 
 
-class Room:
-    def __init__(self) -> None:
-        self.co2_raw = 700.0
-        self.breath_ticks = 0
-        self.sensor_dead = False
-        self.checksum_fail = False
-        self.humid = False
-
-    def sample(self, uptime_s: float) -> Sample:
-        if self.breath_ticks > 0:
-            self.co2_raw += 50
-            self.breath_ticks -= 1
-        elif uptime_s >= 180 and not self.sensor_dead:
-            self.co2_raw += 18
-        self.co2_raw = min(self.co2_raw, 1800)
-        raw = None if self.sensor_dead else int(round(self.co2_raw))
-        return Sample(
-            co2_raw=raw,
-            co2_checksum_ok=not self.checksum_fail,
-            t_c=27.4,
-            rh_pct=82.0 if self.humid else 62.0,
-            p_hpa=932.0,
-            gas_ohm=150_000,
-            pm25=18,
-            pm10=24,
-            pm_checksum_ok=True,
-        )
-
-
 class Demo:
     def __init__(self) -> None:
         self.coefficients = fit()
         self.metrics = replay_metrics(self.coefficients)
         self.node = Node(coefficients=self.coefficients)
-        self.room = Room()
-        self.outdoor = OutdoorSample(pm25=12, pm_quality="ok")
+        self.twin = ClassroomTwin()
+        self.air_override: str | None = None
+        self.breath_ticks = 0
+        self.sensor_dead = False
+        self.checksum_fail = False
         self.broker_up = True
         self.published: list[dict] = []
         self.lock = threading.Lock()
@@ -66,8 +41,36 @@ class Demo:
 
     def tick(self) -> None:
         with self.lock:
-            record = self.node.advance(30.0, self.room.sample(self.node.uptime), self.outdoor, self.broker_up)
+            if self.breath_ticks > 0:
+                self.twin.co2_ppm += 40
+                self.breath_ticks -= 1
+            outdoor = OutdoorSample(pm25=self.twin.spec.outdoor_pm25, pm_quality="ok")
+            record = self.node.advance(30.0, self._sample(), outdoor, self.broker_up)
+            mode = self._air_mode(record)
+            self.twin.step(30.0, mode)
+            record["air_mode"] = mode
+            record["recommended_air_mode"] = recommend_air_mode(self.node.demand, record["outdoor_intake_ok"])
             self._ingest(record)
+
+    def _sample(self) -> Sample:
+        raw = None if self.sensor_dead else self.twin.raw_co2()
+        return Sample(
+            co2_raw=raw,
+            co2_checksum_ok=not self.checksum_fail,
+            t_c=round(self.twin.t_c, 1),
+            rh_pct=round(self.twin.rh_pct, 1),
+            p_hpa=self.twin.spec.pressure_hpa,
+            gas_ohm=self.twin.gas_ohm(),
+            pm25=int(round(self.twin.pm25)),
+            pm10=int(round(self.twin.pm10)),
+        )
+
+    def _air_mode(self, record: dict) -> str:
+        if self.air_override in AIR_MODES:
+            return self.air_override
+        if not record["fan_on"]:
+            return "air_stay"
+        return recommend_air_mode(True, record["outdoor_intake_ok"])
 
     def command(self, payload: dict) -> dict:
         with self.lock:
@@ -82,24 +85,28 @@ class Demo:
     def scenario(self, name: str) -> None:
         with self.lock:
             if name == "breath":
-                self.room.breath_ticks = 8
+                self.breath_ticks = 8
             elif name == "sensor_dead":
-                self.room.sensor_dead = True
+                self.sensor_dead = True
             elif name == "sensor_ok":
-                self.room.sensor_dead = False
-                self.room.checksum_fail = False
+                self.sensor_dead = False
+                self.checksum_fail = False
             elif name == "broker_down":
                 self.broker_up = False
             elif name == "broker_up":
                 self.broker_up = True
             elif name == "outdoor_dirty":
-                self.outdoor = OutdoorSample(pm25=80, pm_quality="ok")
+                self.twin.spec.outdoor_pm25 = 90
+                self.twin.spec.outdoor_pm10 = 120
             elif name == "outdoor_clean":
-                self.outdoor = OutdoorSample(pm25=12, pm_quality="ok")
+                self.twin.spec.outdoor_pm25 = 12
+                self.twin.spec.outdoor_pm10 = 20
             elif name == "humid":
-                self.room.humid = True
+                self.twin.rh_pct = 82
             elif name == "dry":
-                self.room.humid = False
+                self.twin.rh_pct = 60
+            elif name in PRESETS:
+                self.twin.spec.replace(PRESETS[name])
 
     def snapshot(self) -> dict:
         with self.lock:
@@ -119,11 +126,38 @@ class Demo:
                 },
                 "metrics": self.metrics,
                 "history": [
-                    {"seq": item["seq"], "co2_ppm": item["co2_ppm"], "pred": item["co2_pred_10min_ppm"]}
+                    {
+                        "seq": item["seq"],
+                        "co2_ppm": item["co2_ppm"],
+                        "pred": item["co2_pred_10min_ppm"],
+                        "air_mode": item.get("air_mode"),
+                    }
                     for item in self.published[-60:]
                 ],
+                "twin": self._twin_view(),
                 "clock": "1 detik dinding = 30 detik sensor",
             }
+
+    def _twin_view(self) -> dict:
+        view = self.twin.public_state()
+        record = self.node.last_record or {}
+        view["override"] = self.air_override
+        view["recommended_air_mode"] = recommend_air_mode(
+            bool(record.get("vent_request") in ("recommend_on", "on")),
+            bool(record.get("outdoor_intake_ok", True)),
+        )
+        return view
+
+    def configure_twin(self, payload: dict) -> dict:
+        with self.lock:
+            preset = payload.get("preset")
+            if preset in PRESETS:
+                self.twin.spec.replace(PRESETS[preset])
+            if "spec" in payload:
+                self.twin.spec.replace(payload["spec"])
+            override = payload.get("override", self.air_override)
+            self.air_override = override if override in AIR_MODES else None
+            return self._twin_view()
 
     def _ingest(self, record: dict) -> None:
         batch = list(record.get("_flush", []))
@@ -140,10 +174,19 @@ class Demo:
             while not self._stop.wait(1.0):
                 self.tick()
 
+        handler = make_handler(self)
+        try:
+            server = ThreadingHTTPServer((HOST, PORT), handler)
+        except OSError as exc:
+            if exc.errno == 48:
+                raise SystemExit(
+                    f"Port {PORT} sudah dipakai server SAVENT yang masih hidup. "
+                    f"Hentikan proses itu, lalu jalankan perintah ini lagi. "
+                    f"Atau pakai port lain: PORT=8766 python3 -m prototype.server"
+                ) from exc
+            raise
         self.tick()
         threading.Thread(target=loop, daemon=True).start()
-        handler = make_handler(self)
-        server = ThreadingHTTPServer((HOST, PORT), handler)
         print(f"SAVENT demo di http://{HOST}:{PORT}")
         try:
             server.serve_forever()
@@ -198,6 +241,9 @@ def make_handler(demo: Demo):
             if path == "/api/scenario":
                 demo.scenario(payload.get("name", ""))
                 self._json({"ok": True})
+                return
+            if path == "/api/twin":
+                self._json(demo.configure_twin(payload))
                 return
             self.send_error(404)
 

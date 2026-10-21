@@ -7,66 +7,106 @@
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
-  <header>
-    <div>
-      <p class="kicker">Kantin Borju · prototipe hackathon</p>
-      <h1>SAVENT</h1>
-    </div>
-    <p id="clock" class="clock"></p>
-  </header>
+  <aside class="rail">
+    <div class="mark" aria-hidden="true">S</div>
+    <button class="rail-btn active" type="button" title="Live">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1z"/></svg>
+    </button>
+  </aside>
 
-  <section class="grid">
-    <article class="hero">
-      <p class="label">CO₂ terkoreksi</p>
-      <p id="co2" class="figure">–</p>
-      <p id="co2meta" class="meta"></p>
-      <p id="co2status" class="status"></p>
-    </article>
-    <article>
-      <p class="label">Prediksi 10 menit</p>
-      <p id="pred" class="figure small">–</p>
-      <p id="model" class="meta"></p>
-    </article>
-    <article>
-      <p class="label">Keputusan</p>
-      <p id="request" class="figure small">–</p>
-      <p id="fan" class="meta"></p>
-      <p id="intake" class="meta"></p>
-    </article>
-  </section>
-
-  <section class="grid four" id="climate"></section>
-
-  <section class="panel">
-    <div class="split">
+  <div class="workspace">
+    <header class="top">
       <div>
-        <h2>Mode</h2>
-        <div class="modes" id="modes"></div>
-        <div class="actions">
-          <button data-cmd="confirm">Setujui 60 detik</button>
-          <button data-cmd="force_off">Paksa mati</button>
-          <button data-cmd="force_off_release">Lepas paksa mati</button>
+        <p class="kicker"><span class="dot"></span> Live</p>
+        <h1 id="room-title">Kelas standar</h1>
+        <p id="clock" class="sub"></p>
+      </div>
+    </header>
+
+    <div class="stage">
+      <div class="viewport">
+        <canvas id="view"></canvas>
+        <div class="zoom">
+          <button id="zoom-in" type="button" aria-label="Perbesar">+</button>
+          <button id="zoom-out" type="button" aria-label="Perkecil">−</button>
         </div>
+        <article id="popup" class="popup" hidden>
+          <button id="popup-close" type="button" aria-label="Tutup">×</button>
+          <p id="popup-kicker" class="kicker"></p>
+          <h2 id="popup-title"></h2>
+          <dl id="popup-body"></dl>
+        </article>
       </div>
-      <div>
-        <h2>Skenario meja</h2>
-        <div class="actions" id="scenarios"></div>
-        <p id="broker" class="meta"></p>
-      </div>
+
+      <aside class="side">
+        <h2>Keputusan</h2>
+        <p id="request" class="figure">–</p>
+        <p id="fan" class="sub"></p>
+        <p id="model" class="sub"></p>
+        <p class="label">CO₂ terkoreksi</p>
+        <div class="bar"><span id="co2-bar"></span></div>
+        <p id="co2-read" class="sub"></p>
+        <p class="label">Prediksi 10 menit</p>
+        <p id="pred" class="pred"></p>
+        <canvas id="spark" width="280" height="64"></canvas>
+
+        <h2>Udara luar</h2>
+        <p id="outdoor" class="sub"></p>
+        <p id="intake" class="sub"></p>
+
+        <section class="group">
+          <h2>Siapa yang menggerakkan ventilasi</h2>
+          <p id="mode-hint" class="sub">Pilih seberapa jauh sistem boleh bertindak.</p>
+          <div class="actions" id="modes"></div>
+          <div class="actions">
+            <button data-cmd="confirm" type="button">Izinkan sekarang</button>
+            <button data-cmd="force_off" type="button">Hentikan ventilasi</button>
+            <button data-cmd="force_off_release" type="button">Boleh jalan lagi</button>
+          </div>
+        </section>
+        <section class="group">
+          <h2>Arah udara</h2>
+          <p class="sub">Ikuti rekomendasi, atau kunci arahnya untuk percobaan.</p>
+          <div class="actions" id="air-modes"></div>
+        </section>
+        <section class="group">
+          <h2>Ukuran kelas</h2>
+          <div class="actions" id="presets"></div>
+        </section>
+        <details class="group">
+          <summary>Uji gangguan</summary>
+          <p class="sub">Suntikkan kondisi untuk melihat reaksi sistem. Bukan pengaturan gedung.</p>
+          <div class="actions" id="scenarios"></div>
+          <p id="broker" class="sub"></p>
+        </details>
+
+        <form id="twin-form" class="twin-form">
+          <label>Luas m²<input name="floor_area_m2" type="number" step="1" min="10"></label>
+          <label>Plafon m<input name="ceiling_m" type="number" step="0.1" min="2.4"></label>
+          <label>Penghuni<input name="occupants" type="number" step="1" min="0"></label>
+          <label>ACH masuk<input name="supply_ach" type="number" step="0.1" min="0"></label>
+          <label>ACH keluar<input name="exhaust_ach" type="number" step="0.1" min="0"></label>
+          <label>Bocoran<input name="infiltration_ach" type="number" step="0.05" min="0"></label>
+          <label>CO₂ luar<input name="outdoor_co2_ppm" type="number" step="10"></label>
+          <label>PM2.5 luar<input name="outdoor_pm25" type="number" step="1"></label>
+          <button type="submit">Terapkan ukuran</button>
+        </form>
+        <p id="metrics" class="sub"></p>
+        <ol id="events"></ol>
+      </aside>
     </div>
-  </section>
 
-  <section class="panel">
-    <h2>Jejak CO₂</h2>
-    <canvas id="chart" width="960" height="220"></canvas>
-    <p id="metrics" class="meta"></p>
-  </section>
+    <section class="cards" id="cards"></section>
+  </div>
 
-  <section class="panel">
-    <h2>Jejak keputusan</h2>
-    <ol id="events"></ol>
-  </section>
-
-  <script src="/app.js"></script>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.170.0/build/three.module.js",
+      "three/addons/": "https://unpkg.com/three@0.170.0/examples/jsm/"
+    }
+  }
+  </script>
+  <script type="module" src="/app.js"></script>
 </body>
 </html>
