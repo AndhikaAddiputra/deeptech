@@ -1,6 +1,8 @@
 # SAVENT
 
-SAVENT (Smart Adaptive Ventilation) memantau kualitas udara sebuah kelas dan merekomendasikan ventilasi sebelum CO₂ melewati 1000 ppm. Rekomendasi dihitung di perangkat, tanpa awan.
+SAVENT memantau kualitas udara di kelas, lantai pabrik, dan kabin MLQ/CLQ di rig. Rekomendasi dihitung di perangkat, tanpa awan. Ambang kelas dan kabin awak 1000 ppm. Ambang lantai pabrik 2500 ppm, di bawah pajanan kerja 8 jam 5000 ppm.
+
+Sidebar kiri memilih lingkungan. Mengganti halaman mengosongkan angka ruang sebelumnya.
 
 Untuk hackathon, lingkungan kelas adalah digital twin: satu zona yang volumenya mengikuti luas lantai dan tinggi plafon. Aktuator perangkat keras belum dipasang. Tiga arah udara menggantikannya.
 
@@ -30,7 +32,7 @@ Hentikan server dengan Ctrl+C.
 
 ## Bukti di layar
 
-Banner di bawah kelas menulis tiga hal: prediksi lebih awal daripada aturan ambang, lama CO₂ di atas 1000 ppm dibanding kelas yang dibiarkan diam, dan alasan kipas menyala atau diam. Node sensor dan kipas ada di model 3D. Kipas berputar saat udara luar dimasukkan atau udara dalam dibuang.
+Banner di bawah ruang menulis tiga hal: prediksi lebih awal daripada aturan ambang lingkungan itu, lama CO₂ di atas ambang dibanding ruang yang dibiarkan diam, dan alasan kipas menyala atau diam. Node sensor dan kipas dinding ada di model 3D.
 
 ## Membaca dasbor
 

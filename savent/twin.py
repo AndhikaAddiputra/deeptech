@@ -39,6 +39,12 @@ class RoomSpec:
     outdoor_rh: float = 68.0
     pressure_hpa: float = 932.0
     heat_w_per_person: float = 70.0
+    process_co2_m3_h: float = 0.0
+    process_pm_ug_h: float = 0.0
+    co2_on_ppm: int = 1000
+    co2_off_ppm: int = 800
+    co2_pred_off_ppm: int = 900
+    environment: str = "kelas"
 
     @property
     def volume_m3(self) -> float:
@@ -63,6 +69,13 @@ class RoomSpec:
         self.outdoor_co2_ppm = _bound(self.outdoor_co2_ppm, 350, 800)
         self.outdoor_pm25 = _bound(self.outdoor_pm25, 0, 500)
         self.pressure_hpa = _bound(self.pressure_hpa, 800, 1100)
+        self.process_co2_m3_h = _bound(self.process_co2_m3_h, 0, 20)
+        self.process_pm_ug_h = _bound(self.process_pm_ug_h, 0, 5_000_000)
+        self.co2_on_ppm = int(_bound(self.co2_on_ppm, 400, 5000))
+        self.co2_off_ppm = int(_bound(self.co2_off_ppm, 300, self.co2_on_ppm))
+        self.co2_pred_off_ppm = int(_bound(self.co2_pred_off_ppm, self.co2_off_ppm, self.co2_on_ppm))
+        if self.environment not in ENVIRONMENTS:
+            self.environment = "kelas"
 
 
 PRESETS = {
@@ -70,6 +83,90 @@ PRESETS = {
     "kelas-standar": {"floor_area_m2": 72, "ceiling_m": 3.2, "occupants": 24},
     "auditorium": {"floor_area_m2": 200, "ceiling_m": 5.0, "occupants": 80},
 }
+
+ENVIRONMENTS = {
+    "kelas": {
+        "title": "Ruang Kelas",
+        "initial_co2": 650.0,
+        "spec": {
+            "environment": "kelas",
+            "floor_area_m2": 72,
+            "ceiling_m": 3.2,
+            "occupants": 24,
+            "co2_l_per_person_h": 18,
+            "pressure_hpa": 932,
+            "outdoor_pm25": 12,
+            "outdoor_rh": 68,
+            "co2_on_ppm": 1000,
+            "co2_off_ppm": 800,
+            "co2_pred_off_ppm": 900,
+        },
+        "presets": [
+            {"id": "kelas-kecil", "label": "Kelas kecil"},
+            {"id": "kelas-standar", "label": "Kelas standar"},
+            {"id": "auditorium", "label": "Auditorium"},
+        ],
+    },
+    "pabrik": {
+        "title": "Ruang Pabrik",
+        "initial_co2": 900.0,
+        "spec": {
+            "environment": "pabrik",
+            "floor_area_m2": 400,
+            "ceiling_m": 8,
+            "occupants": 12,
+            "co2_l_per_person_h": 22,
+            "process_co2_m3_h": 5,
+            "process_pm_ug_h": 80000,
+            "supply_ach": 12,
+            "exhaust_ach": 12,
+            "pressure_hpa": 932,
+            "outdoor_pm25": 28,
+            "outdoor_t_c": 31,
+            "co2_on_ppm": 2500,
+            "co2_off_ppm": 2000,
+            "co2_pred_off_ppm": 2200,
+        },
+        "presets": [
+            {"id": "pabrik-kecil", "label": "Bengkel"},
+            {"id": "pabrik", "label": "Lantai produksi"},
+        ],
+    },
+    "rig": {
+        "title": "Modular Living Quarters (MLQ) di Oil Rig",
+        "initial_co2": 700.0,
+        "spec": {
+            "environment": "rig",
+            "floor_area_m2": 15,
+            "ceiling_m": 2.4,
+            "occupants": 4,
+            "co2_l_per_person_h": 12,
+            "supply_ach": 8,
+            "exhaust_ach": 8,
+            "infiltration_ach": 0.35,
+            "pressure_hpa": 1013,
+            "outdoor_co2_ppm": 480,
+            "outdoor_pm25": 35,
+            "outdoor_pm10": 55,
+            "outdoor_t_c": 30,
+            "outdoor_rh": 82,
+            "co2_on_ppm": 1000,
+            "co2_off_ppm": 800,
+            "co2_pred_off_ppm": 900,
+        },
+        "presets": [
+            {"id": "mlq", "label": "Satu kabin MLQ"},
+            {"id": "mlq-ganda", "label": "Dua kabin"},
+        ],
+    },
+}
+
+PRESETS.update({
+    "pabrik-kecil": {"floor_area_m2": 180, "ceiling_m": 6, "occupants": 6, "environment": "pabrik"},
+    "pabrik": {"floor_area_m2": 400, "ceiling_m": 8, "occupants": 12, "environment": "pabrik"},
+    "mlq": {"floor_area_m2": 15, "ceiling_m": 2.4, "occupants": 4, "environment": "rig"},
+    "mlq-ganda": {"floor_area_m2": 30, "ceiling_m": 2.4, "occupants": 8, "environment": "rig"},
+})
 
 
 class ClassroomTwin:
@@ -108,8 +205,8 @@ class ClassroomTwin:
         pm_in = self.spec.outdoor_pm25
         if mode == AIR_OUT:
             pm_in = self.spec.outdoor_pm25 * (1.0 - self.spec.exhaust_pm_filter)
-        co2_gen = self.spec.occupants * self.spec.co2_l_per_person_h / 1000.0
-        pm_gen = self.spec.occupants * self.spec.pm25_ug_per_person_h
+        co2_gen = self.spec.occupants * self.spec.co2_l_per_person_h / 1000.0 + self.spec.process_co2_m3_h
+        pm_gen = self.spec.occupants * self.spec.pm25_ug_per_person_h + self.spec.process_pm_ug_h
         heat_w = self.spec.occupants * self.spec.heat_w_per_person
         self.co2_ppm = _mix(self.co2_ppm, co2_in, co2_gen * 1_000_000.0, flow, volume, dt_h)
         self.pm25 = max(0.0, _mix(self.pm25, pm_in, pm_gen, flow, volume, dt_h))

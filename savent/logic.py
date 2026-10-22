@@ -93,10 +93,10 @@ def predict(co2_ppm: float, dco2_dt: float, rh_pct: float, coefficients: tuple[f
     return a0 + a1 * co2_ppm + a2 * dco2_dt + a3 * rh_pct
 
 
-def compliance(co2_ppm: float | None, t_c: float | None, rh_pct: float | None, pm25: float | None, pm_quality_flag: str) -> dict[str, Any]:
+def compliance(co2_ppm: float | None, t_c: float | None, rh_pct: float | None, pm25: float | None, pm_quality_flag: str, co2_limit: float = CO2_ON_PPM) -> dict[str, Any]:
     """Status tampilan. PM2.5 sesaat bukan klaim rata-rata 24 jam."""
     return {
-        "co2": _band(co2_ppm, high=CO2_ON_PPM),
+        "co2": _band(co2_ppm, high=co2_limit),
         "temperature": _inside(t_c, 23.0, 26.0),
         "humidity": _inside(rh_pct, 40.0, 60.0),
         "pm25_instant_indicator": None if pm_quality_flag == "fault" or pm25 is None else ("tinggi" if pm25 > 25 else "dalam_indikator"),
@@ -163,6 +163,10 @@ class Node:
     fan_changed_at: float = -1.0e9
     co2_valid: bool = False
     gas_baseline: float | None = None
+    co2_on_ppm: float = CO2_ON_PPM
+    co2_off_ppm: float = CO2_OFF_PPM
+    co2_pred_on_ppm: float = CO2_PRED_ON_PPM
+    co2_pred_off_ppm: float = CO2_PRED_OFF_PPM
     buffer: deque = field(default_factory=lambda: deque(maxlen=BUFFER_LIMIT))
     events: list[dict[str, Any]] = field(default_factory=list)
     history: list[tuple[float, float]] = field(default_factory=list)
@@ -254,12 +258,14 @@ class Node:
             "mode": self.mode,
             "fan_on": self.fan_on,
             "force_off": self.force_off,
+            "co2_on_ppm": self.co2_on_ppm,
             "compliance": compliance(
                 None if co2_corr is None else co2_corr,
                 sample.t_c,
                 sample.rh_pct,
                 sample.pm25,
                 flags["pm"],
+                self.co2_on_ppm,
             ),
         }
         self.last_record = record
@@ -332,14 +338,14 @@ class Node:
             self.demand = False
             return
         if model_ready and pred is not None:
-            if pred >= CO2_PRED_ON_PPM or co2 >= CO2_ON_PPM:
+            if pred >= self.co2_pred_on_ppm or co2 >= self.co2_on_ppm:
                 self.demand = True
-            elif pred < CO2_PRED_OFF_PPM and co2 <= CO2_OFF_PPM:
+            elif pred < self.co2_pred_off_ppm and co2 <= self.co2_off_ppm:
                 self.demand = False
             return
-        if co2 >= CO2_ON_PPM:
+        if co2 >= self.co2_on_ppm:
             self.demand = True
-        elif co2 <= CO2_OFF_PPM:
+        elif co2 <= self.co2_off_ppm:
             self.demand = False
 
     def _apply_fan(self, source: str) -> None:

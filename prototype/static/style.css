@@ -26,34 +26,122 @@ body {
 button, input { font: inherit; color: inherit; }
 
 .rail {
+  position: relative;
+  z-index: 6;
+  width: 72px;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: stretch;
   gap: 12px;
-  padding: 16px 0;
+  padding: 16px 12px;
   background: #f7f5f2;
   border-right: 1px solid var(--line);
+  transition: width 0.2s ease, box-shadow 0.2s ease;
+}
+
+.rail:hover {
+  width: 210px;
+  box-shadow: var(--shadow);
 }
 
 .mark {
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
+  height: 44px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-left: 2px;
+  flex: none;
+  overflow: hidden;
+}
+
+.mark svg { width: 36px; height: 36px; flex: none; }
+
+.brand-name {
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.045em;
+  color: #1a1a1a;
+}
+
+.rail:hover .mark { margin-left: 0; }
+
+.top { display: block; }
+
+.loader {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
   display: grid;
   place-items: center;
-  background: var(--ink);
-  color: white;
-  font-weight: 650;
+  align-content: center;
+  gap: 22px;
+  background: #f4f1ea;
+  color: #1a1a1a;
+}
+
+.loader[hidden] { display: none; }
+
+.loader-lockup {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.loader-lockup svg {
+  width: 92px;
+  height: 92px;
+  animation: mark-in 0.7s ease;
+}
+
+.loader-word {
+  margin: 0;
+  color: #1a1a1a;
+  font-family: "Avenir Next", "Segoe UI", sans-serif;
+  font-size: 64px;
+  font-weight: 700;
+  letter-spacing: -0.045em;
+  line-height: 1;
+}
+
+.loader p { margin: 0; }
+
+#loader-text {
+  font-family: "Avenir Next", "Segoe UI", sans-serif;
+  font-size: 15px;
+  letter-spacing: 0.01em;
+  text-transform: none;
+  color: #6d6962;
+}
+
+@keyframes mark-in {
+  from { transform: scale(0.92); opacity: 0.4; }
+  to { transform: scale(1); opacity: 1; }
 }
 
 .rail-btn {
-  width: 40px;
   height: 40px;
   border: 0;
   border-radius: 12px;
   background: transparent;
   cursor: pointer;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 14px;
+  overflow: hidden;
 }
+
+.rail-name {
+  opacity: 0;
+  white-space: nowrap;
+  font-weight: 560;
+  transition: opacity 0.15s ease;
+}
+
+.rail:hover .rail-name { opacity: 1; }
 
 .rail-btn svg { width: 22px; height: 22px; fill: var(--muted); }
 .rail-btn.active { background: white; box-shadow: var(--shadow); }
@@ -88,7 +176,11 @@ button, input { font: inherit; color: inherit; }
   box-shadow: 0 0 0 4px rgba(47, 125, 87, 0.15);
 }
 
-.sub { margin: 4px 0 0; font-size: 13px; line-height: 1.4; }
+.variant {
+  margin: 2px 0 0;
+  font-size: 18px;
+  color: var(--muted);
+}
 
 .stage {
   min-height: 0;
@@ -259,7 +351,7 @@ button, input { font: inherit; color: inherit; }
 
 .cards {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
 }
 

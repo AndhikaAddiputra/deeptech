@@ -14,11 +14,7 @@ const airModes = [
   ["air_out", "Buang udara dalam"],
   ["air_stay", "Biarkan diam"],
 ];
-const presets = [
-  ["kelas-kecil", "Kelas kecil"],
-  ["kelas-standar", "Kelas standar"],
-  ["auditorium", "Auditorium"],
-];
+const presetsByEnvironment = {};
 const scenarios = [
   ["breath", "Tambah CO₂"],
   ["sensor_dead", "Putuskan sensor"],
@@ -75,15 +71,32 @@ for (const [override, label] of airModes) {
   airBox.append(button);
 }
 
-for (const [preset, label] of presets) {
-  const button = document.createElement("button");
-  button.type = "button";
-  button.textContent = label;
-  button.addEventListener("click", async () => {
-    roomTitle = label;
-    fillTwin(await post("/api/twin", { preset }));
-  });
-  presetBox.append(button);
+const loader = document.querySelector("#loader");
+const loaderText = document.querySelector("#loader-text");
+const envNames = {
+  kelas: "ruang kelas",
+  pabrik: "lantai pabrik",
+  rig: "kabin MLQ",
+};
+
+for (const button of document.querySelectorAll("[data-env]")) {
+  button.addEventListener("click", () => switchEnvironment(button.dataset.env));
+}
+
+async function switchEnvironment(name) {
+  if (name === latest?.environment?.id) return;
+  loaderText.textContent = `Menyiapkan ${envNames[name] || "ruang"}`;
+  loader.hidden = false;
+  const started = performance.now();
+  try {
+    const environment = await post("/api/environment", { name });
+    roomTitle = environment.title;
+    renderPresets(environment.presets || []);
+  } finally {
+    const remain = 720 - (performance.now() - started);
+    if (remain > 0) await new Promise((resolve) => setTimeout(resolve, remain));
+    loader.hidden = true;
+  }
 }
 
 for (const [name, label] of scenarios) {
@@ -112,14 +125,24 @@ async function post(url, body) {
     body: JSON.stringify(body),
   });
   const payload = await response.json();
-  refresh();
+  await refresh();
   return payload;
 }
 
 async function refresh() {
   latest = await (await fetch("/api/state")).json();
   const record = latest.record;
+  if (latest.environment) {
+    roomTitle = latest.environment.title;
+    renderPresets(latest.environment.presets || []);
+    document.querySelector("#env-note").textContent = latest.environment.note || "";
+    for (const button of document.querySelectorAll("[data-env]")) {
+      button.classList.toggle("active", button.dataset.env === latest.environment.id);
+    }
+  }
   document.querySelector("#room-title").textContent = roomTitle;
+  const preset = (latest.environment?.presets || []).find((item) => item.id === latest.environment?.preset_id);
+  document.querySelector("#room-variant").textContent = preset ? preset.label : "Ukuran khusus";
   document.querySelector("#clock").textContent = record
     ? `${record.ts} · 1 detik dinding = 30 detik sensor`
     : "Menunggu sampel";
@@ -141,7 +164,8 @@ function paintDecision(record) {
   document.querySelector("#co2-read").textContent = co2 == null
     ? "CO₂ belum valid"
     : `${co2} ppm terkoreksi · mentah ${record.co2_raw_ppm} · ${record.quality.co2}`;
-  document.querySelector("#co2-bar").style.width = `${Math.min(100, ((co2 || 0) / 1500) * 100)}%`;
+  const limit = record?.co2_on_ppm || latest?.environment?.co2_on_ppm || 1000;
+  document.querySelector("#co2-bar").style.width = `${Math.min(100, ((co2 || 0) / (limit * 1.6)) * 100)}%`;
   document.querySelector("#pred").textContent = record?.co2_pred_10min_ppm == null ? "–" : `${record.co2_pred_10min_ppm} ppm`;
   const spec = latest?.twin?.spec;
   document.querySelector("#outdoor").textContent = spec
@@ -163,6 +187,25 @@ function paintDecision(record) {
   if (metrics) {
     document.querySelector("#metrics").textContent =
       `MAE model ${num(metrics.mae_model_ppm)} ppm · persistensi ${num(metrics.mae_persistence_ppm)} ppm · lead ${metrics.lead_time_s ?? "–"} dtk`;
+  }
+}
+
+function renderPresets(presets) {
+  const current = presets.map((item) => item.id).join();
+  if (presetBox.dataset.key !== current) {
+    presetBox.dataset.key = current;
+    presetBox.replaceChildren(...presets.map((item) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = item.label;
+      button.dataset.preset = item.id;
+      button.addEventListener("click", () => post("/api/twin", { preset: item.id }));
+      return button;
+    }));
+  }
+  const active = latest?.environment?.preset_id || "";
+  for (const button of presetBox.querySelectorAll("button")) {
+    button.classList.toggle("active", button.dataset.preset === active);
   }
 }
 
@@ -192,12 +235,11 @@ function fillTwin(twin) {
 
 function paintCards() {
   const record = latest?.record;
-  const mode = record?.air_mode;
+  const spec = latest?.twin?.spec;
   const cards = [
-    ["sensor", "Node sensor", record ? `${record.co2_ppm ?? "–"} ppm · ${record.quality?.co2 ?? ""}` : "Menunggu", "Sensing"],
-    ["fan", "Kipas", record?.fan_actuator ? "Berputar" : "Diam", "Aktuator"],
-    ["air_in", "Masukkan udara luar", mode === "air_in" ? "Sedang mengalir" : "Diam", "Arah udara"],
-    ["air_out", "Buang udara dalam", mode === "air_out" ? "Sedang membuang" : "Diam", "Arah udara"],
+    ["sensor", "Node Sensor Indoor", record ? `${record.co2_ppm ?? "–"} ppm · ${record.quality?.co2 ?? ""}` : "Menunggu", "Sensing"],
+    ["outdoor", "Node Sensor Outdoor", spec ? `${spec.outdoor_co2_ppm} ppm · PM ${spec.outdoor_pm25}` : "Menunggu", "Sensing"],
+    ["fan", "Reverseable Fan", record?.fan_actuator ? airLabel(record.air_mode) : "Diam", "Aktuator"],
   ];
   const host = document.querySelector("#cards");
   host.replaceChildren(...cards.map(([id, title, detail, kind]) => {
@@ -225,15 +267,15 @@ function paintPopup() {
   }
   const record = latest.record;
   const twin = latest.twin;
+  const spec = twin?.spec;
   popup.hidden = false;
   const rect = canvas.getBoundingClientRect();
   popup.style.left = `${Math.min(rect.width * 0.42, rect.width - 300)}px`;
   popup.style.top = "18%";
   const titles = {
-    sensor: "Node sensor",
-    fan: "Kipas",
-    air_in: "Masukkan udara luar",
-    air_out: "Buang udara dalam",
+    sensor: "Node Sensor Indoor",
+    outdoor: "Node Sensor Outdoor",
+    fan: "Reverseable Fan",
   };
   const rows = selected === "sensor"
     ? [
@@ -243,23 +285,22 @@ function paintPopup() {
       ["RH", `${record.rh_pct}%`],
       ["PM2.5", record.pm25_ugm3],
       ["Bendera", record.quality.co2],
-      ["Alasan", record.reason],
     ]
-    : selected === "fan"
+    : selected === "outdoor"
       ? [
-        ["Keadaan", record.fan_actuator ? "Berputar" : "Diam"],
-        ["Arah udara", airLabel(record.air_mode)],
-        ["Alasan", record.reason],
+        ["CO₂ luar", spec ? `${spec.outdoor_co2_ppm} ppm` : "–"],
+        ["PM2.5 luar", spec?.outdoor_pm25 ?? "–"],
+        ["Suhu luar", spec ? `${spec.outdoor_t_c} °C` : "–"],
+        ["RH luar", spec ? `${spec.outdoor_rh}%` : "–"],
+        ["Tekanan", spec ? `${spec.pressure_hpa} hPa` : "–"],
+        ["Kelayakan", record.outdoor_intake_ok ? "Layak masuk" : "Lebih kotor"],
       ]
       : [
-        ["Mode aktif", airLabel(record.air_mode)],
-        ["ACH", twin?.ach ?? "–"],
-        ["Volume", twin ? `${twin.volume_m3} m³` : "–"],
-        ["Udara luar", record.outdoor_intake_ok ? "Layak" : "Ditolak"],
-        ["Rekomendasi", airLabel(record.recommended_air_mode)],
+        ["Keadaan", record.fan_actuator ? "Berputar" : "Diam"],
+        ["Arah", airLabel(record.air_mode)],
         ["Alasan", record.reason],
       ];
-  document.querySelector("#popup-kicker").textContent = selected === "sensor" ? "Sensing" : "Aktuator";
+  document.querySelector("#popup-kicker").textContent = selected === "fan" ? "Aktuator" : "Sensing";
   document.querySelector("#popup-title").textContent = titles[selected] || "Perangkat";
   const body = document.querySelector("#popup-body");
   body.replaceChildren();

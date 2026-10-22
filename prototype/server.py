@@ -15,7 +15,7 @@ from urllib.parse import urlparse
 
 from savent.logic import Node, OutdoorSample, Sample
 from savent.model import fit, replay_metrics
-from savent.twin import AIR_MODES, AIR_STAY, PRESETS, ClassroomTwin, recommend_air_mode
+from savent.twin import AIR_MODES, AIR_STAY, ENVIRONMENTS, PRESETS, ClassroomTwin, RoomSpec, recommend_air_mode
 from savent.proof import compare_text, explain_decision, lead_text
 
 ROOT = Path(__file__).resolve().parent
@@ -32,6 +32,8 @@ class Demo:
         self.node = Node(coefficients=self.coefficients)
         self.twin = ClassroomTwin()
         self.shadow = ClassroomTwin(self.twin.spec)
+        self.environment = "kelas"
+        self.preset_id = "kelas-standar"
         self.air_override: str | None = None
         self.breath_ticks = 0
         self.sensor_dead = False
@@ -47,6 +49,7 @@ class Demo:
 
     def tick(self) -> None:
         with self.lock:
+            self._sync_thresholds()
             if self.breath_ticks > 0:
                 self.twin.co2_ppm += 40
                 self.shadow.co2_ppm += 40
@@ -68,22 +71,54 @@ class Demo:
     def _tally(self, seen_co2: float, seen_shadow: float, record: dict) -> None:
         if record.get("quality", {}).get("co2") != "ok":
             return
-        if seen_co2 >= 1000:
+        limit = self.node.co2_on_ppm
+        if seen_co2 >= limit:
             self.above_s += 30
-        if seen_shadow >= 1000:
+        if seen_shadow >= limit:
             self.shadow_above_s += 30
         co2 = record.get("co2_ppm")
         pred = record.get("co2_pred_10min_ppm")
-        if self.model_warn_at is None and record.get("model_used") and pred is not None and co2 is not None and pred >= 1000 and co2 < 1000:
+        if self.model_warn_at is None and record.get("model_used") and pred is not None and co2 is not None and pred >= limit and co2 < limit:
             self.model_warn_at = self.node.now
-        if self.rule_warn_at is None and co2 is not None and co2 >= 1000:
+        if self.rule_warn_at is None and co2 is not None and co2 >= limit:
             self.rule_warn_at = self.node.now
+
+    def _sync_thresholds(self) -> None:
+        spec = self.twin.spec
+        self.node.co2_on_ppm = spec.co2_on_ppm
+        self.node.co2_off_ppm = spec.co2_off_ppm
+        self.node.co2_pred_on_ppm = spec.co2_on_ppm
+        self.node.co2_pred_off_ppm = spec.co2_pred_off_ppm
+
+    def set_environment(self, name: str) -> dict:
+        with self.lock:
+            if name not in ENVIRONMENTS:
+                name = "kelas"
+            profile = ENVIRONMENTS[name]
+            spec = RoomSpec()
+            spec.replace(profile["spec"])
+            self.environment = name
+            self.preset_id = {"kelas": "kelas-standar", "pabrik": "pabrik", "rig": "mlq"}[name]
+            self.twin = ClassroomTwin(spec)
+            self.shadow = ClassroomTwin(self.twin.spec)
+            self.twin.co2_ppm = profile["initial_co2"]
+            self.shadow.co2_ppm = profile["initial_co2"]
+            self.above_s = 0
+            self.shadow_above_s = 0
+            self.model_warn_at = None
+            self.rule_warn_at = None
+            self.node.history.clear()
+            self.node.demand = False
+            self.node.gas_baseline = None
+            self.air_override = None
+            self._sync_thresholds()
+            return self.environment_view()
 
     def _proof(self) -> dict:
         return {
             "reason": explain_decision(self.node.last_record or {}, (self.node.last_record or {}).get("air_mode", "air_stay")),
-            "lead": lead_text(self.model_warn_at, self.rule_warn_at, self.metrics.get("lead_time_s")),
-            "compare": compare_text(self.above_s, self.shadow_above_s),
+            "lead": lead_text(self.model_warn_at, self.rule_warn_at, self.metrics.get("lead_time_s"), self.node.co2_on_ppm),
+            "compare": compare_text(self.above_s, self.shadow_above_s, self.node.co2_on_ppm),
         }
 
     def _sample(self) -> Sample:
@@ -170,6 +205,7 @@ class Demo:
                 ],
                 "twin": self._twin_view(),
                 "proof": self._proof(),
+                "environment": self.environment_view(),
                 "clock": "1 detik dinding = 30 detik sensor",
             }
 
@@ -181,14 +217,28 @@ class Demo:
             bool(record.get("vent_request") in ("recommend_on", "on")),
             bool(record.get("outdoor_intake_ok", True)),
         )
+        view["environment"] = self.environment
         return view
+
+    def environment_view(self) -> dict:
+        profile = ENVIRONMENTS[self.environment]
+        return {
+            "id": self.environment,
+            "title": profile["title"],
+            "note": profile.get("note", ""),
+            "co2_on_ppm": profile["spec"]["co2_on_ppm"],
+            "presets": profile["presets"],
+            "preset_id": self.preset_id,
+        }
 
     def configure_twin(self, payload: dict) -> dict:
         with self.lock:
             preset = payload.get("preset")
             if preset in PRESETS:
+                self.preset_id = preset
                 self.twin.spec.replace(PRESETS[preset])
             if "spec" in payload:
+                self.preset_id = None
                 self.twin.spec.replace(payload["spec"])
             override = payload.get("override", self.air_override)
             self.air_override = override if override in AIR_MODES else None
@@ -276,6 +326,9 @@ def make_handler(demo: Demo):
             if path == "/api/scenario":
                 demo.scenario(payload.get("name", ""))
                 self._json({"ok": True})
+                return
+            if path == "/api/environment":
+                self._json(demo.set_environment(payload.get("name", "kelas")))
                 return
             if path == "/api/twin":
                 self._json(demo.configure_twin(payload))

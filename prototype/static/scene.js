@@ -89,33 +89,60 @@ export function createClassroom(canvas, onSelect) {
     return box;
   }
 
-  function build(area, ceiling) {
+  function build(area, ceiling, kind) {
     clearRoot();
-    const ratio = 1.25;
-    const width = Math.sqrt(area / ratio);
-    const depth = width * ratio;
-    const wallH = Math.max(ceiling, 2.6);
-    const t = 0.12;
+    let width;
+    let depth;
+    if (kind === "rig") {
+      width = 2.4;
+      depth = Math.max(area / width, 5.5);
+    } else if (kind === "pabrik") {
+      width = Math.sqrt(area / 1.8);
+      depth = width * 1.8;
+    } else {
+      width = Math.sqrt(area / 1.25);
+      depth = width * 1.25;
+    }
+    const wallH = Math.max(ceiling, 2.4);
+    const t = kind === "rig" ? 0.08 : 0.12;
+    const wallColor = kind === "rig" ? 0xc5ced1 : 0xf4f0e8;
+    const floorColor = kind === "pabrik" ? 0xc8c4bc : kind === "rig" ? 0xb7c2c6 : 0xd9cbb8;
     roomSpan = Math.max(width, depth, wallH);
 
-    mesh(width, 0.08, depth, 0, -0.04, 0, 0xd9cbb8);
-    mesh(width, wallH, t, 0, wallH / 2, -depth / 2, 0xf4f0e8);
-    mesh(t, wallH, depth, -width / 2, wallH / 2, 0, 0xefeae2);
-    mesh(width * 0.22, 0.9, t, -width * 0.28, 0.45, depth / 2, 0xf7f3ec);
-    mesh(width * 0.22, 0.9, t, width * 0.28, 0.45, depth / 2, 0xf7f3ec);
-    mesh(width * 0.34, wallH * 0.55, 0.04, 0, wallH * 0.62, depth / 2 - 0.02, 0xc5d8e4);
+    mesh(width, 0.08, depth, 0, -0.04, 0, floorColor);
+    mesh(width, wallH, t, 0, wallH / 2, -depth / 2, wallColor);
+    mesh(t, wallH, depth, -width / 2, wallH / 2, 0, wallColor);
+    if (kind !== "rig") {
+      mesh(width * 0.22, 0.9, t, -width * 0.28, 0.45, depth / 2, wallColor);
+      mesh(width * 0.22, 0.9, t, width * 0.28, 0.45, depth / 2, wallColor);
+      mesh(width * 0.34, wallH * 0.45, 0.04, 0, wallH * 0.62, depth / 2 - 0.02, 0xc5d8e4);
+    } else {
+      mesh(width, wallH, t, 0, wallH / 2, depth / 2, wallColor);
+      mesh(0.7, 0.45, 0.04, 0, 1.5, depth / 2 - 0.02, 0x9bb7c6);
+    }
 
-    mesh(width * 0.42, wallH * 0.28, 0.04, 0, wallH * 0.62, -depth / 2 + t, 0xf7f7f5);
-    mesh(0.7, 0.04, 1.3, 0, 0.78, -depth / 2 + 0.85, 0xc8b89a);
-
-    const rows = 3;
-    const cols = 3;
-    for (let row = 0; row < rows; row += 1) {
-      for (let col = 0; col < cols; col += 1) {
-        const x = (col - 1) * width * 0.24;
-        const z = (row - 0.2) * depth * 0.18;
-        mesh(width * 0.16, 0.05, depth * 0.08, x, 0.74, z, 0xe4d3b8);
-        mesh(0.28, 0.45, 0.28, x, 0.28, z + depth * 0.055, 0xb7c3c9);
+    if (kind === "pabrik") {
+      for (let i = 0; i < 3; i += 1) {
+        const z = (i - 1) * depth * 0.22;
+        mesh(width * 0.55, 1.1, depth * 0.12, 0, 0.7, z, 0x8e9698);
+        mesh(width * 0.2, 0.15, depth * 0.08, 0, 1.3, z, 0xd97848);
+      }
+    } else if (kind === "rig") {
+      for (const side of [-1, 1]) {
+        mesh(0.7, 0.35, 1.9, side * 0.55, 0.55, -0.4, 0xd5dde0);
+        mesh(0.7, 0.28, 1.9, side * 0.55, 1.35, -0.4, 0xe7eef1);
+      }
+      mesh(0.55, 0.04, depth * 0.7, 0, 0.02, 0.6, 0x9aa6aa);
+    } else {
+      mesh(width * 0.42, wallH * 0.28, 0.04, 0, wallH * 0.62, -depth / 2 + t, 0xf7f7f5);
+      mesh(0.7, 0.04, 1.3, 0, 0.78, -depth / 2 + 0.85, 0xc8b89a);
+      for (let row = 0; row < 3; row += 1) {
+        for (let col = 0; col < 3; col += 1) {
+          const x = (col - 1) * width * 0.24;
+          const z = (row - 0.2) * depth * 0.18;
+          mesh(width * 0.16, 0.05, depth * 0.08, x, 0.74, z, 0xe4d3b8);
+          mesh(0.28, 0.45, 0.28, x, 0.28, z + depth * 0.055, 0xb7c3c9);
+        }
       }
     }
 
@@ -217,10 +244,10 @@ export function createClassroom(canvas, onSelect) {
   function update(state) {
     const spec = state?.twin?.spec;
     if (!spec) return;
-    const next = `${spec.floor_area_m2}:${spec.ceiling_m}`;
+    const next = `${spec.environment || "kelas"}:${spec.floor_area_m2}:${spec.ceiling_m}`;
     if (next !== signature) {
       signature = next;
-      build(spec.floor_area_m2, spec.ceiling_m);
+      build(spec.floor_area_m2, spec.ceiling_m, spec.environment || "kelas");
     }
     paint(state.record);
   }

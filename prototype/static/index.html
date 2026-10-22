@@ -8,17 +8,37 @@
 </head>
 <body>
   <aside class="rail">
-    <div class="mark" aria-hidden="true">S</div>
-    <button class="rail-btn active" type="button" title="Live">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1z"/></svg>
-    </button>
+    <div class="mark" aria-label="Savent">
+      <svg viewBox="0 0 100 100" aria-hidden="true">
+        <defs>
+          <linearGradient id="savent-dark" x1="12" y1="16" x2="48" y2="78" gradientUnits="userSpaceOnUse">
+            <stop stop-color="#3b78e7"/>
+            <stop offset="1" stop-color="#163a9c"/>
+          </linearGradient>
+          <linearGradient id="savent-light" x1="40" y1="8" x2="92" y2="92" gradientUnits="userSpaceOnUse">
+            <stop stop-color="#8fd4fb"/>
+            <stop offset="0.55" stop-color="#3aa8ee"/>
+            <stop offset="1" stop-color="#1f8fd8"/>
+          </linearGradient>
+        </defs>
+        <path fill="url(#savent-dark)" d="M36 12c8 2 10 10 4 16-7 7-16 10-20 20-5 12 2 26 16 30 9 3 18-2 20-10 2-8-4-12-12-12-7 0-12 4-13 9-1 6-8 8-12 4-8-8-8-24 0-34 6-8 16-14 17-23z"/>
+        <path fill="url(#savent-light)" d="M58 8c16 1 30 14 32 32 2 20-12 40-32 46-8 2-14-2-16-8l8-4c10 6 24 2 30-10 6-12 2-26-8-32-8-5-16-4-22 1-5 4-12 2-14-4-2-7 2-14 10-16 4-1 8-4 12-5z"/>
+        <path fill="#1f8fd8" opacity="0.28" d="M42 78c8 6 22 8 32-2 2 6-2 12-10 14-12 3-26-2-32-10 2 0 6 0 10-2z"/>
+      </svg>
+      <span class="rail-name brand-name">Savent</span>
+    </div>
+    <button class="rail-btn active" type="button" data-env="kelas" title="Kelas"><span>K</span><span class="rail-name">Kelas</span></button>
+    <button class="rail-btn" type="button" data-env="pabrik" title="Pabrik"><span>P</span><span class="rail-name">Pabrik</span></button>
+    <button class="rail-btn" type="button" data-env="rig" title="MLQ / CLQ"><span>R</span><span class="rail-name">Rig</span></button>
   </aside>
 
   <div class="workspace">
     <header class="top">
       <div>
         <p class="kicker"><span class="dot"></span> Live</p>
-        <h1 id="room-title">Kelas standar</h1>
+        <h1 id="room-title">Ruang Kelas</h1>
+        <p id="room-variant" class="variant">Kelas standar</p>
+        <p id="env-note" class="sub"></p>
         <p id="clock" class="sub"></p>
       </div>
     </header>
@@ -66,7 +86,7 @@
           <div class="actions" id="air-modes"></div>
         </section>
         <section class="group">
-          <h2>Ukuran kelas</h2>
+          <h2>Variasi Lingkungan</h2>
           <div class="actions" id="presets"></div>
         </section>
         <details class="group">
@@ -93,6 +113,29 @@
     </div>
 
     <section class="cards" id="cards"></section>
+  </div>
+
+  <div id="loader" class="loader" hidden>
+    <div class="loader-lockup">
+      <svg viewBox="0 0 100 100" aria-hidden="true">
+        <defs>
+          <linearGradient id="loader-dark" x1="12" y1="16" x2="48" y2="78" gradientUnits="userSpaceOnUse">
+            <stop stop-color="#3b78e7"/>
+            <stop offset="1" stop-color="#163a9c"/>
+          </linearGradient>
+          <linearGradient id="loader-light" x1="40" y1="8" x2="92" y2="92" gradientUnits="userSpaceOnUse">
+            <stop stop-color="#8fd4fb"/>
+            <stop offset="0.55" stop-color="#3aa8ee"/>
+            <stop offset="1" stop-color="#1f8fd8"/>
+          </linearGradient>
+        </defs>
+        <path fill="url(#loader-dark)" d="M36 12c8 2 10 10 4 16-7 7-16 10-20 20-5 12 2 26 16 30 9 3 18-2 20-10 2-8-4-12-12-12-7 0-12 4-13 9-1 6-8 8-12 4-8-8-8-24 0-34 6-8 16-14 17-23z"/>
+        <path fill="url(#loader-light)" d="M58 8c16 1 30 14 32 32 2 20-12 40-32 46-8 2-14-2-16-8l8-4c10 6 24 2 30-10 6-12 2-26-8-32-8-5-16-4-22 1-5 4-12 2-14-4-2-7 2-14 10-16 4-1 8-4 12-5z"/>
+        <path fill="#1f8fd8" opacity="0.28" d="M42 78c8 6 22 8 32-2 2 6-2 12-10 14-12 3-26-2-32-10 2 0 6 0 10-2z"/>
+      </svg>
+      <p class="loader-word">Savent</p>
+    </div>
+    <p id="loader-text">Menyiapkan ruang</p>
   </div>
 
   <script type="importmap">
